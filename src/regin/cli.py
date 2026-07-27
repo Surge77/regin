@@ -11,6 +11,7 @@ from rich.table import Table
 
 from regin import __version__
 from regin.agent import MissingAPIKeyError, build_agent
+from regin.bench.cli import bench_app
 from regin.config import Config, Secrets
 from regin.schemas import Outcome
 from regin.trace import TraceStore
@@ -18,6 +19,7 @@ from regin.trace import TraceStore
 app = typer.Typer(add_completion=False, help="A terminal coding agent with a benchmark loop.")
 trace_app = typer.Typer(help="Inspect run traces.")
 app.add_typer(trace_app, name="trace")
+app.add_typer(bench_app, name="bench")
 
 console = Console()
 

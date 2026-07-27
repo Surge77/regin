@@ -20,7 +20,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Only the benchmark sweep needs a Docker daemon, so the agent itself stays installable
+# on a machine without one. `uvx regin` must work on a clean box.
+bench = [
+    "docker==7.1.0",
+]
 dev = [
+    "pyright==1.1.406",
     "pytest==8.4.2",
     "pytest-asyncio==1.0.0",
     "pytest-cov==6.1.1",

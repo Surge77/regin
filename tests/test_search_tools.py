@@ -14,7 +14,7 @@ from regin.tools.search import (
     GlobTool,
     GrepArgs,
     GrepTool,
-    _parse_ripgrep_json,
+    parse_ripgrep_json,
 )
 
 needs_ripgrep = pytest.mark.skipif(
@@ -105,7 +105,7 @@ def test_ripgrep_parser_extracts_matches(tmp_path: Path) -> None:
         f'"lines":{{"text":"hit here\\n"}}}}}}\n'
         '{"type":"end","data":{}}\n'
     )
-    assert _parse_ripgrep_json(stdout, tmp_path) == ["a.py:7: hit here"]
+    assert parse_ripgrep_json(stdout, tmp_path) == ["a.py:7: hit here"]
 
 
 def test_ripgrep_parser_skips_malformed_lines(tmp_path: Path) -> None:
@@ -116,4 +116,4 @@ def test_ripgrep_parser_skips_malformed_lines(tmp_path: Path) -> None:
         f'{{"type":"match","data":{{"path":{{"text":"{path}"}},"line_number":1,'
         f'"lines":{{"text":"kept\\n"}}}}}}\n'
     )
-    assert _parse_ripgrep_json(stdout, tmp_path) == ["a.py:1: kept"]
+    assert parse_ripgrep_json(stdout, tmp_path) == ["a.py:1: kept"]

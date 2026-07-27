@@ -149,7 +149,7 @@ class AgentLoop:
             return ToolResult(call_id=call.id, content=f"invalid arguments: {exc}", is_error=True)
 
         try:
-            self._permissions.check(call.name, _summarise(call))
+            self._permissions.check(call.name, summarise_call(call))
         except PermissionError_ as exc:
             return ToolResult(call_id=call.id, content=str(exc), is_error=True)
 
@@ -166,6 +166,6 @@ class AgentLoop:
         )
 
 
-def _summarise(call: ToolCall) -> str:
+def summarise_call(call: ToolCall) -> str:
     parts = [f"{k}={str(v)[:60]}" for k, v in call.arguments.items()]
     return f"{call.name}({', '.join(parts)})"

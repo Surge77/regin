@@ -11,13 +11,12 @@ container is the real boundary — that is the Phase 2 benchmark configuration.
 
 from __future__ import annotations
 
-import asyncio
 import shlex
-import subprocess
-import sys
 from pathlib import Path
 
 from pydantic import BaseModel, Field
+
+from regin.sandbox.exec import Executor, LocalExecutor
 
 # Enough to build, test, and inspect a Python repo. Anything else is opt-in via config.
 DEFAULT_ALLOWLIST: tuple[str, ...] = (
@@ -129,72 +128,27 @@ class BashTool:
         timeout_s: int = 120,
         allowlist: tuple[str, ...] = DEFAULT_ALLOWLIST,
         max_output_chars: int = 30_000,
+        executor: Executor | None = None,
     ) -> None:
         self._root = root
         self._timeout_s = timeout_s
         self._allowlist = allowlist
         self._max_output_chars = max_output_chars
+        self._executor = executor or LocalExecutor(root)
 
     async def run(self, args: BaseModel) -> str:
         assert isinstance(args, BashArgs)
         check_allowed(args.command, self._allowlist)
 
-        proc = await _spawn(args.command, self._root)
-
-        try:
-            stdout, _ = await asyncio.wait_for(proc.communicate(), self._timeout_s)
-        except TimeoutError:
-            _kill_group(proc)
-            await proc.wait()
+        result = await self._executor.run(args.command, self._timeout_s)
+        if result.timed_out:
             return f"command timed out after {self._timeout_s}s and was killed:\n$ {args.command}"
 
-        output = stdout.decode(errors="replace")
+        output = result.output
         if len(output) > self._max_output_chars:
             head = self._max_output_chars // 3
             tail = self._max_output_chars - head
             omitted = len(output) - self._max_output_chars
             output = f"{output[:head]}\n... [{omitted} chars omitted] ...\n{output[-tail:]}"
 
-        return f"exit={proc.returncode}\n{output}".rstrip()
-
-
-async def _spawn(command: str, root: Path) -> asyncio.subprocess.Process:
-    """Start the command in its own process group so a timeout kills its descendants too.
-
-    Without the group, killing `pytest` leaves the workers it spawned running and holding
-    the pipe open, so the timeout never actually reclaims the run. The two branches are
-    written out rather than splatted from a dict so the argument types stay checkable.
-    """
-    if sys.platform == "win32":
-        return await asyncio.create_subprocess_shell(
-            command,
-            cwd=str(root),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-        )
-    return await asyncio.create_subprocess_shell(
-        command,
-        cwd=str(root),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        start_new_session=True,
-    )
-
-
-def _kill_group(proc: asyncio.subprocess.Process) -> None:
-    if sys.platform == "win32":
-        subprocess.run(  # noqa: S603 - pid is ours, not model-supplied
-            ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-            capture_output=True,
-            check=False,
-        )
-        return
-
-    import os
-    import signal
-
-    try:
-        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-    except (ProcessLookupError, PermissionError):  # pragma: no cover - race on exit
-        proc.kill()
+        return f"exit={result.exit_code}\n{output}".rstrip()

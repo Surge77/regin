@@ -52,7 +52,7 @@ class Compactor:
         if input_tokens < self._threshold:
             return messages
 
-        head, middle, tail = _partition(messages)
+        head, middle, tail = partition(messages)
         if not middle:
             return messages
 
@@ -63,7 +63,7 @@ class Compactor:
         response = await self._provider.complete(
             messages=[
                 Message(role="system", content=SUMMARY_PROMPT),
-                Message(role="user", content=_transcribe(middle)),
+                Message(role="user", content=transcribe(middle)),
             ],
             tools=[],
             model=self._config.model.name,
@@ -73,7 +73,7 @@ class Compactor:
         return response.text
 
 
-def _partition(messages: list[Message]) -> tuple[list[Message], list[Message], list[Message]]:
+def partition(messages: list[Message]) -> tuple[list[Message], list[Message], list[Message]]:
     """Split into (head, middle, tail).
 
     The head is the system prompt plus the original task — dropping it loses the goal.
@@ -94,7 +94,7 @@ def _partition(messages: list[Message]) -> tuple[list[Message], list[Message], l
     return head, rest[:split], rest[split:]
 
 
-def _transcribe(messages: list[Message]) -> str:
+def transcribe(messages: list[Message]) -> str:
     """Flatten messages to plain text for the summariser.
 
     Provider-specific blocks are deliberately dropped — the summariser only needs the

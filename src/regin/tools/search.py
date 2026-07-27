@@ -126,7 +126,7 @@ class GrepTool:
         if proc.returncode not in (0, 1):
             return f"grep failed: {stderr.decode(errors='replace').strip()}"
 
-        matches = _parse_ripgrep_json(stdout.decode(errors="replace"), self._root)
+        matches = parse_ripgrep_json(stdout.decode(errors="replace"), self._root)
         if not matches:
             return f"no matches for {args.pattern!r}"
 
@@ -136,7 +136,7 @@ class GrepTool:
         return header + ":\n" + "\n".join(matches[:MAX_GREP_MATCHES])
 
 
-def _parse_ripgrep_json(stdout: str, root: Path) -> list[str]:
+def parse_ripgrep_json(stdout: str, root: Path) -> list[str]:
     """Flatten rg's JSON event stream to 'path:line: text' lines.
 
     rg emits one JSON object per line with mixed event types; only 'match' carries a hit.

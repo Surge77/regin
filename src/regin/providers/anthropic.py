@@ -47,15 +47,15 @@ class AnthropicProvider:
         effort: str = "high",
     ) -> ModelResponse:
         started = time.monotonic()
-        system, turns = _split_system(messages)
+        system, turns = split_system(messages)
 
         async with self._client.messages.stream(
             model=model,
             max_tokens=max_output_tokens,
-            system=_cached(system),
-            tools=_cache_last_tool(tools),
+            system=cast("list[TextBlockParam]", cache_system(system)),
+            tools=cast("list[ToolUnionParam]", cache_tools(tools)),
             output_config=cast(OutputConfigParam, {"effort": effort}),
-            messages=turns,
+            messages=cast("list[MessageParam]", turns),
         ) as stream:
             if self._on_text is not None:
                 async for chunk in stream.text_stream:
@@ -81,30 +81,30 @@ class AnthropicProvider:
         )
 
 
-def _split_system(messages: list[Message]) -> tuple[str, list[MessageParam]]:
+def split_system(messages: list[Message]) -> tuple[str, list[dict[str, Any]]]:
     """Separate the system prompt from the conversation.
 
     Anthropic takes the system prompt as a top-level parameter rather than a message,
     and it must stay byte-identical across turns or the cached prefix is invalidated.
     """
     system_parts: list[str] = []
-    turns: list[MessageParam] = []
+    turns: list[dict[str, Any]] = []
 
     for message in messages:
         if message.role == "system":
             system_parts.append(message.content)
         elif message.role == "assistant":
-            content = _assistant_content(message)
-            turns.append(cast(MessageParam, {"role": "assistant", "content": content}))
+            content = assistant_content(message)
+            turns.append({"role": "assistant", "content": content})
         elif message.role == "tool":
-            turns.append(cast(MessageParam, {"role": "user", "content": _tool_results(message)}))
+            turns.append({"role": "user", "content": tool_result_blocks(message)})
         else:
             turns.append({"role": "user", "content": message.content})
 
     return "\n".join(system_parts), turns
 
 
-def _assistant_content(message: Message) -> Any:
+def assistant_content(message: Message) -> Any:
     """Replay the exact blocks the API returned when we have them.
 
     Reconstructing an assistant turn from text + tool calls drops thinking blocks,
@@ -123,7 +123,7 @@ def _assistant_content(message: Message) -> Any:
     return blocks or ""
 
 
-def _tool_results(message: Message) -> list[dict[str, Any]]:
+def tool_result_blocks(message: Message) -> list[dict[str, Any]]:
     """All results for one assistant turn go back in a single user message.
 
     Splitting them across messages teaches the model to stop making parallel tool calls.
@@ -139,7 +139,7 @@ def _tool_results(message: Message) -> list[dict[str, Any]]:
     ]
 
 
-def _cached(system: str) -> list[TextBlockParam]:
+def cache_system(system: str) -> list[dict[str, Any]]:
     """Mark the system prompt as a cache breakpoint.
 
     The prompt is frozen for the run's lifetime, so every turn after the first reads it
@@ -150,11 +150,11 @@ def _cached(system: str) -> list[TextBlockParam]:
     return [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
 
 
-def _cache_last_tool(tools: list[dict[str, Any]]) -> list[ToolUnionParam]:
+def cache_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Cache the tool definitions too. They render before the system prompt and never
     change within a run, so they belong inside the cached prefix."""
     if not tools:
         return []
     marked = [dict(tool) for tool in tools]
     marked[-1]["cache_control"] = {"type": "ephemeral"}
-    return [cast(ToolUnionParam, tool) for tool in marked]
+    return marked

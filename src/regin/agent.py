@@ -13,6 +13,7 @@ from regin.loop import AgentLoop
 from regin.permissions import ConsolePrompter, Permissions
 from regin.providers.anthropic import AnthropicProvider
 from regin.providers.base import Provider
+from regin.sandbox.exec import Executor
 from regin.tools.base import ToolRegistry
 from regin.tools.fs import EditFileTool, ReadFileTool, WriteFileTool
 from regin.tools.search import GlobTool, GrepTool
@@ -24,8 +25,18 @@ class MissingAPIKeyError(RuntimeError):
     """No credential for the configured provider."""
 
 
-def build_tools(root: Path, config: Config) -> ToolRegistry:
-    """The tool surface. Order is stable so the cached prompt prefix stays valid."""
+def build_tools(
+    root: Path,
+    config: Config,
+    executor: Executor | None = None,
+    allowlist: tuple[str, ...] | None = None,
+) -> ToolRegistry:
+    """The tool surface. Order is stable so the cached prompt prefix stays valid.
+
+    `executor` routes `bash` into a container for benchmark runs. `allowlist` overrides the
+    configured one — a sweep passes an empty tuple, because inside a disposable container
+    the container is the boundary and a repository's own test runner may invoke anything.
+    """
     registry = ToolRegistry()
     registry.register(ReadFileTool(root))
     registry.register(WriteFileTool(root))
@@ -36,8 +47,9 @@ def build_tools(root: Path, config: Config) -> ToolRegistry:
         BashTool(
             root,
             timeout_s=config.tools.bash_timeout_s,
-            allowlist=tuple(config.tools.bash_allowlist),
+            allowlist=tuple(config.tools.bash_allowlist) if allowlist is None else allowlist,
             max_output_chars=config.tools.max_tool_output_chars,
+            executor=executor,
         )
     )
     return registry
