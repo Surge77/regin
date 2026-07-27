@@ -58,7 +58,17 @@ def _config() -> Config:
 
 
 async def test_agent_fixes_a_failing_test_unattended(broken_repo: Path) -> None:
-    pytest_command = f"{sys.executable} -m pytest -q"
+    # -B stops Python writing .pyc files, so none exists to go stale between the two runs.
+    #
+    # Without it this test fails on fast machines, and the reason is worth knowing: Python
+    # invalidates cached bytecode on the source's size and mtime-truncated-to-seconds. This
+    # fix ("a - b" -> "a + b") changes neither — identical byte length, and on CI the edit
+    # lands in the same second as the first run. The second pytest then imports the stale
+    # bytecode and still reports a failure, despite the source on disk being correct.
+    #
+    # This is a real hazard for any coding agent, not just this test: a same-size edit
+    # applied quickly can make a passing fix look like it failed.
+    pytest_command = f"{sys.executable} -B -m pytest -q"
     provider = ScriptedProvider(
         [
             _call("read_file", {"path": "test_calc.py"}),
