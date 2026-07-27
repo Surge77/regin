@@ -5,8 +5,41 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # The grep tool shells out to ripgrep; without it those tests silently skip
+      # rather than fail, which would hide a real regression.
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check src tests scorers
+
+      - name: Type gate
+        run: pyright
+
+      - name: Tests
+        run: pytest --cov=src/regin --cov-report=term-missing --cov-fail-under=80
+
+  # The loop and the permission gate are the two files where a coverage gap is most
+  # likely to cost money or leak a capability, so they are held at 100% separately.
+  critical-coverage:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,7 +47,9 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+      - run: sudo apt-get update && sudo apt-get install -y ripgrep
       - run: pip install -e ".[dev]"
-      - run: ruff check src tests
-      - run: pip install pyright==1.1.403 && pyright
-      - run: pytest --cov --cov-report=term-missing --cov-fail-under=80
+      - name: loop.py and permissions.py must be fully covered
+        run: |
+          pytest --cov=regin.loop --cov=regin.permissions \
+                 --cov-report=term-missing --cov-fail-under=100

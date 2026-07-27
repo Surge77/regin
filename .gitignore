@@ -19,3 +19,6 @@ runs/
 *.db-wal
 *.db-shm
 artifacts/
+
+# Windows/Cygwin crash artifacts
+*.stackdump
