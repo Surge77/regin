@@ -73,9 +73,13 @@ Every tool call passes a permission gate. `read_file`, `glob`, and `grep` are al
 ## Benchmark
 
 ```bash
-regin bench run   --tasks tasks/swe-bench-lite.jsonl --agent regin --max-cost 25
-regin bench score --records "runs/bench/*-records.jsonl" --verdicts verdicts.json \
-                  --markdown results.md
+# one-time: fetch a task set and validate it before spending anything
+pip install datasets
+python scripts/fetch_tasks.py lite
+python scripts/check_tasks.py tasks/swe-bench-lite.jsonl
+
+regin bench run   --tasks tasks/swe-bench-lite.jsonl --agent regin --limit 5 --max-cost 2
+regin bench score runs/bench/*-records.jsonl --verdicts verdicts.json --markdown results.md
 ```
 
 `--max-cost` is a hard ceiling enforced before each instance is dispatched, not a warning after

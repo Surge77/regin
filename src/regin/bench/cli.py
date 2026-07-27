@@ -94,7 +94,15 @@ def bench_run(
     )
 
 
-RECORDS_OPT = typer.Option(..., "--records", help="JSONL run records (repeatable via glob)")
+RECORDS_OPT = typer.Option(
+    None,
+    "--records",
+    help="JSONL run records. Repeat the flag, or pass a glob — both work in any shell.",
+)
+RECORDS_ARG = typer.Argument(
+    None,
+    help="Record files, for when your shell already expanded the glob.",
+)
 VERDICTS_OPT = typer.Option(
     None, "--verdicts", help="evalgate verdicts JSON; without it only completion is reported"
 )
@@ -103,16 +111,26 @@ MARKDOWN_OPT = typer.Option(None, "--markdown", help="Write the scorecard table 
 
 @bench_app.command("score")
 def bench_score(
-    records: Path = RECORDS_OPT,
+    files: list[Path] | None = RECORDS_ARG,
+    records: list[Path] | None = RECORDS_OPT,
     verdicts: Path | None = VERDICTS_OPT,
     markdown: Path | None = MARKDOWN_OPT,
 ) -> None:
     """Aggregate run records into the comparison table."""
-    paths = sorted(records.parent.glob(records.name)) if "*" in records.name else [records]
+    # Both spellings feed one list: whether a quoted glob survives to the program or is
+    # expanded by the shell is the shell's decision, not something the user should have to
+    # think about when copying a command out of the README.
+    requested = [*(records or []), *(files or [])]
+    if not requested:
+        console.print("[red]pass at least one record file, via --records or positionally[/]")
+        raise typer.Exit(2)
+
+    paths = _expand(requested)
     all_records = [record for path in paths for record in load_records(path)]
 
     if not all_records:
-        console.print(f"[red]no records found at {records}[/]")
+        shown = ", ".join(str(entry) for entry in requested)
+        console.print(f"[red]no records found at {shown}[/]")
         raise typer.Exit(2)
 
     resolved_ids: set[str] | None = None
@@ -134,3 +152,21 @@ def bench_score(
     if markdown is not None:
         markdown.write_text(to_markdown(scores) + "\n", encoding="utf-8")
         console.print(f"[green]wrote {markdown}[/]")
+
+
+def _expand(entries: list[Path]) -> list[Path]:
+    """Resolve each entry, which may be a literal path or an unexpanded glob.
+
+    Both forms have to work. Shells differ on whether a quoted glob reaches the program
+    unexpanded, so a command copied from the README should not fail on the user's shell —
+    and repeating `--records` is the portable escape hatch when it does.
+    """
+    paths: list[Path] = []
+    for entry in entries:
+        if any(char in entry.name for char in "*?["):
+            paths.extend(sorted(entry.parent.glob(entry.name)))
+        else:
+            paths.append(entry)
+    # Deduplicated: a glob and an explicit path can name the same file, and counting a
+    # record twice would silently distort every figure in the table.
+    return list(dict.fromkeys(paths))

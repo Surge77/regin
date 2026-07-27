@@ -122,6 +122,77 @@ def test_bench_score_applies_evalgate_verdicts(in_tmp_dir: Path) -> None:
     assert "50.0%" in markdown.read_text(encoding="utf-8")
 
 
+def _records_file(path: Path, agent: str, count: int = 2) -> Path:
+    path.write_text(
+        "".join(
+            RunRecord(
+                run_id=f"{agent}-{i}", task_id=f"t{i}", agent=agent, outcome=Outcome.RESOLVED
+            ).to_jsonl()
+            for i in range(count)
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_bench_score_accepts_positional_files(in_tmp_dir: Path) -> None:
+    """Shells differ on whether a quoted glob survives to the program. When the shell
+    expands it first, the paths arrive positionally and must still work."""
+    a = _records_file(in_tmp_dir / "regin-records.jsonl", "regin")
+    b = _records_file(in_tmp_dir / "aider-records.jsonl", "aider")
+
+    result = runner.invoke(app, ["bench", "score", str(a), str(b)])
+
+    assert result.exit_code == 0
+    assert "regin" in result.stdout
+    assert "aider" in result.stdout
+
+
+def test_bench_score_accepts_a_repeated_flag(in_tmp_dir: Path) -> None:
+    a = _records_file(in_tmp_dir / "regin-records.jsonl", "regin")
+    b = _records_file(in_tmp_dir / "aider-records.jsonl", "aider")
+
+    result = runner.invoke(app, ["bench", "score", "--records", str(a), "--records", str(b)])
+
+    assert result.exit_code == 0
+    assert "aider" in result.stdout
+
+
+def test_bench_score_accepts_an_unexpanded_glob(in_tmp_dir: Path) -> None:
+    _records_file(in_tmp_dir / "regin-records.jsonl", "regin")
+    _records_file(in_tmp_dir / "aider-records.jsonl", "aider")
+
+    result = runner.invoke(
+        app, ["bench", "score", "--records", str(in_tmp_dir / "*-records.jsonl")]
+    )
+
+    assert result.exit_code == 0
+    assert "regin" in result.stdout
+    assert "aider" in result.stdout
+
+
+def test_bench_score_counts_a_record_once_when_named_twice(in_tmp_dir: Path) -> None:
+    """A glob and an explicit path can name the same file; double-counting would silently
+    distort every figure in the table."""
+    a = _records_file(in_tmp_dir / "regin-records.jsonl", "regin", count=3)
+
+    result = runner.invoke(
+        app,
+        ["bench", "score", str(a), "--records", str(in_tmp_dir / "*-records.jsonl")],
+    )
+
+    assert result.exit_code == 0
+    # n must be 3, not 6.
+    assert " 3 " in result.stdout
+
+
+def test_bench_score_requires_at_least_one_file(in_tmp_dir: Path) -> None:
+    result = runner.invoke(app, ["bench", "score"])
+
+    assert result.exit_code == 2
+    assert "at least one record file" in result.stdout
+
+
 def test_bench_score_errors_on_missing_records(in_tmp_dir: Path) -> None:
     empty = in_tmp_dir / "none.jsonl"
     empty.write_text("", encoding="utf-8")

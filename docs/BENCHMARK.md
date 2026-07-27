@@ -66,18 +66,20 @@ which is correct but noticeably slower — fine for a handful of instances, pain
 ## Getting a task set
 
 Any JSONL export of SWE-bench works. Field names match upstream exactly, so no conversion step is
-needed:
+needed. Start with `lite` (300 instances) for cost, and report on `verified` (500) once a configuration
+is worth the spend. Two helper scripts do this and check it:
 
 ```bash
-python - <<'PY'
-from datasets import load_dataset
-ds = load_dataset("princeton-nlp/SWE-bench_Lite", split="test")
-ds.to_json("tasks/swe-bench-lite.jsonl")
-PY
+pip install datasets
+python scripts/fetch_tasks.py lite                     # -> tasks/swe-bench-lite.jsonl
+python scripts/check_tasks.py tasks/swe-bench-lite.jsonl
 ```
 
-Start with `lite` (300 instances) for cost, and report on `verified` (500) once a configuration
-is worth the spend.
+`check_tasks.py` is worth running before every sweep. It catches the failures that would
+otherwise surface partway through a paid run, when the money is already gone: instances with no
+FAIL_TO_PASS (which can never resolve, so they only drag the denominator down), missing repo or
+base_commit (guaranteed skips), empty problem statements, duplicate IDs, and — cheapest and most
+important — the reference patch leaking into the prompt.
 
 ## Running a sweep
 
@@ -134,11 +136,14 @@ cp scorers/swebench.py ../evalgate/evalgate/scorers/
 Then grade and render:
 
 ```bash
-regin bench score \
-  --records "runs/bench/*-records.jsonl" \
+regin bench score runs/bench/*-records.jsonl \
   --verdicts verdicts.json \
   --markdown results.md
 ```
+
+Record files can be passed positionally (as above), as a repeated `--records` flag, or as a
+quoted glob. All three work, because shells disagree about whether a quoted glob reaches the
+program unexpanded, and a command copied from these docs should not depend on that.
 
 A verdict counts as resolved only when all three hold:
 
@@ -157,7 +162,7 @@ regin bench run --tasks tasks/swe-bench-lite.jsonl --agent regin       --max-cos
 regin bench run --tasks tasks/swe-bench-lite.jsonl --agent claude-code --max-cost 25
 regin bench run --tasks tasks/swe-bench-lite.jsonl --agent aider       --max-cost 25
 
-regin bench score --records "runs/bench/*-records.jsonl" --verdicts verdicts.json
+regin bench score runs/bench/*-records.jsonl --verdicts verdicts.json
 ```
 
 Competitors need their own CLIs installed (`claude`, `aider`). An absent binary is recorded as a
