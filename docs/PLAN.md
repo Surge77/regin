@@ -22,12 +22,12 @@ Neither imports the other's internals.
 
 ### Completion Criteria
 
-- [ ] `regin fix <task>` resolves a failing test in a real repo without human intervention
+- [x] `regin fix <task>` resolves a failing test in a real repo without human intervention
 - [ ] README states a number: "resolves X% of N held-out SWE-bench-verified tasks"
-- [ ] Same harness scores `regin`, Claude Code, and Aider on the identical task set
+- [x] Same harness scores `regin`, Claude Code, and Aider on the identical task set *(built; not yet run)*
 - [ ] At least one documented A/B: "changed <thing>, resolve-rate X% → Y%"
-- [ ] Cost + latency + turns reported per run, sourced from provider `usage` fields
-- [ ] pyright strict clean, pytest ≥ 80% coverage, 100% on `loop.py` + `permissions.py`
+- [x] Cost + latency + turns reported per run, sourced from provider `usage` fields
+- [x] pyright strict clean, pytest ≥ 80% coverage, 100% on `loop.py` + `permissions.py`
 - [ ] Published to PyPI; `uvx regin --help` works on a clean machine
 
 ---
@@ -52,7 +52,7 @@ Neither imports the other's internals.
 
 ---
 
-## Phase 1 — v0 Agent Loop  ·  ~1 week
+## Phase 1 — v0 Agent Loop  ·  ~1 week  ·  STATUS: done
 
 **Goal:** the smallest thing that is honestly an agent. Closes the feedback edge.
 
@@ -77,7 +77,7 @@ the anchoring strategy (exact → whitespace-normalised → fuzzy fallback, in t
 
 ---
 
-## Phase 2 — Benchmark Loop  ·  ~2 weeks  ·  ⭐ the actual deliverable
+## Phase 2 — Benchmark Loop  ·  ~2 weeks  ·  ⭐ the actual deliverable  ·  STATUS: built, unscored
 
 **Goal:** a defensible number, and the ability to move it on purpose.
 
@@ -98,7 +98,7 @@ and enforce it in the runner *before* the first sweep, not after the bill.
 
 ---
 
-## Phase 3 — Hardening  ·  ~3–4 weeks
+## Phase 3 — Hardening  ·  ~3–4 weeks  ·  STATUS: built, all flags off pending a baseline
 
 **Goal:** every feature added is now evidence, because Phase 2 gave you a baseline.
 
@@ -115,7 +115,7 @@ and enforce it in the runner *before* the first sweep, not after the bill.
 
 ---
 
-## Phase 4 — Ecosystem *(optional)*  ·  ~2 weeks
+## Phase 4 — Ecosystem *(optional)*  ·  ~2 weeks  ·  STATUS: 4.1–4.3 done; 4.4 blocked by design
 
 | Part | Deliverable |
 |------|-------------|
