@@ -12,9 +12,14 @@ from regin.schemas import Message, ModelResponse
 
 
 class Provider(Protocol):
-    """Every adapter implements exactly this."""
+    """Every adapter implements exactly this.
 
-    name: str
+    `name` is read-only so that a decorator exposing it as a property — `RetryingProvider`
+    does — still satisfies the protocol. A mutable attribute would be invariant and reject it.
+    """
+
+    @property
+    def name(self) -> str: ...
 
     async def complete(
         self,

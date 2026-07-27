@@ -31,6 +31,20 @@ class LoopConfig(BaseModel):
     # Fraction of context_limit_tokens at which the loop compacts rather than stalling.
     compact_at: float = 0.75
 
+    # Phase 3 experiments. Every one defaults to off: the project's rule is that no
+    # orchestration change lands without a re-scored before/after, so the shipped baseline
+    # must stay the measured baseline until a sweep says otherwise. Each flag is one A/B.
+    plan_first: bool = False
+    planner_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
+    planner_max_tokens: int = 2048
+
+    outline_tool: bool = False
+
+    subagent_tool: bool = False
+    subagent_max_turns: int = 12
+
+    retry_attempts: int = 4
+
 
 class ToolsConfig(BaseModel):
     bash_timeout_s: int = 120

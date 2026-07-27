@@ -13,11 +13,14 @@ from regin.loop import AgentLoop
 from regin.permissions import ConsolePrompter, Permissions
 from regin.providers.anthropic import AnthropicProvider
 from regin.providers.base import Provider
+from regin.providers.retry import RetryingProvider
 from regin.sandbox.exec import Executor
 from regin.tools.base import ToolRegistry
 from regin.tools.fs import EditFileTool, ReadFileTool, WriteFileTool
+from regin.tools.outline import OutlineTool
 from regin.tools.search import GlobTool, GrepTool
 from regin.tools.shell import BashTool
+from regin.tools.subagent import SubagentTool
 from regin.ui import Renderer
 
 
@@ -30,6 +33,7 @@ def build_tools(
     config: Config,
     executor: Executor | None = None,
     allowlist: tuple[str, ...] | None = None,
+    provider: Provider | None = None,
 ) -> ToolRegistry:
     """The tool surface. Order is stable so the cached prompt prefix stays valid.
 
@@ -43,6 +47,10 @@ def build_tools(
     registry.register(EditFileTool(root))
     registry.register(GlobTool(root))
     registry.register(GrepTool(root))
+    if config.loop.outline_tool:
+        registry.register(OutlineTool(root))
+    if config.loop.subagent_tool and provider is not None:
+        registry.register(SubagentTool(root, provider, config))
     registry.register(
         BashTool(
             root,
@@ -62,7 +70,12 @@ def build_provider(config: Config, api_key: str, renderer: Renderer) -> Provider
         raise MissingAPIKeyError(
             "ANTHROPIC_API_KEY is not set. Put it in .env or export it before running."
         )
-    return AnthropicProvider(api_key=api_key, on_text=renderer.text)
+
+    provider = AnthropicProvider(api_key=api_key, on_text=renderer.text)
+    # Retry wraps the provider rather than living in the loop, so the planner and the
+    # compactor inherit it too. A rate limit at instance 200 of a sweep would otherwise be
+    # recorded as an agent failure, which is a lie about the agent.
+    return RetryingProvider(provider, max_attempts=config.loop.retry_attempts)
 
 
 def build_agent(
@@ -76,7 +89,7 @@ def build_agent(
     provider = build_provider(config, api_key, renderer)
     loop = AgentLoop(
         provider=provider,
-        tools=build_tools(root, config),
+        tools=build_tools(root, config, provider=provider),
         permissions=Permissions(
             config.permissions,
             prompter=None if quiet else ConsolePrompter(),

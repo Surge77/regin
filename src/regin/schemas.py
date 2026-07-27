@@ -91,6 +91,10 @@ class RunRecord(BaseModel):
     turns: int = 0
     patch: str = ""
 
+    # The agent's closing message. Not evidence of success — the scorer decides that — but
+    # it is what a subagent returns to its parent, and it makes a trace readable.
+    summary: str = ""
+
     usage: Usage = Field(default_factory=Usage)
     cost_usd: float = 0.0
     latency_ms: int = 0

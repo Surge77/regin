@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from regin.config import Config
 from regin.context.compaction import Compactor
+from regin.context.planning import Planner
 from regin.permissions import PermissionError_, Permissions
 from regin.providers.base import Provider, cost_usd
 from regin.schemas import (
@@ -49,12 +50,14 @@ class AgentLoop:
         config: Config,
         compactor: Compactor | None = None,
         renderer: Renderer | None = None,
+        planner: Planner | None = None,
     ) -> None:
         self._provider = provider
         self._tools = tools
         self._permissions = permissions
         self._config = config
         self._compactor = compactor or Compactor(provider, config)
+        self._planner = planner or Planner(provider, config)
         self._renderer = renderer or Renderer(quiet=True)
 
     async def run(self, task: str, task_id: str = "adhoc") -> RunRecord:
@@ -70,6 +73,9 @@ class AgentLoop:
             Message(role="system", content=SYSTEM_PROMPT),
             Message(role="user", content=task),
         ]
+        # No-op unless loop.plan_first is enabled — see context/planning.py for why this
+        # ships off by default.
+        messages = await self._planner.seed(messages, task)
         total = Usage()
 
         while True:
@@ -118,6 +124,7 @@ class AgentLoop:
             # No tool calls means the model considers the task finished.
             if not response.tool_calls:
                 record.outcome = Outcome.RESOLVED
+                record.summary = response.text
                 break
 
             self._renderer.turn(record.turns, record.cost_usd)
