@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from regin.config import Config
 from regin.context.compaction import Compactor
 from regin.context.planning import Planner
+from regin.hooks import HookRegistry, HookVeto
 from regin.permissions import PermissionError_, Permissions
 from regin.providers.base import Provider, cost_usd
 from regin.schemas import (
@@ -51,6 +52,7 @@ class AgentLoop:
         compactor: Compactor | None = None,
         renderer: Renderer | None = None,
         planner: Planner | None = None,
+        hooks: HookRegistry | None = None,
     ) -> None:
         self._provider = provider
         self._tools = tools
@@ -58,9 +60,16 @@ class AgentLoop:
         self._config = config
         self._compactor = compactor or Compactor(provider, config)
         self._planner = planner or Planner(provider, config)
+        self._hooks = hooks or HookRegistry()
         self._renderer = renderer or Renderer(quiet=True)
+        self.messages: list[Message] = []
 
-    async def run(self, task: str, task_id: str = "adhoc") -> RunRecord:
+    async def run(
+        self,
+        task: str,
+        task_id: str = "adhoc",
+        resume_from: list[Message] | None = None,
+    ) -> RunRecord:
         started = time.monotonic()
         record = RunRecord(
             run_id=uuid.uuid4().hex[:12],
@@ -69,13 +78,17 @@ class AgentLoop:
             config_hash=config_hash(self._config.hashable()),
         )
 
-        messages: list[Message] = [
-            Message(role="system", content=SYSTEM_PROMPT),
-            Message(role="user", content=task),
-        ]
-        # No-op unless loop.plan_first is enabled — see context/planning.py for why this
-        # ships off by default.
-        messages = await self._planner.seed(messages, task)
+        if resume_from is not None:
+            # A resumed run already has a plan and a system prompt in its history.
+            messages = list(resume_from)
+        else:
+            messages = [
+                Message(role="system", content=SYSTEM_PROMPT),
+                Message(role="user", content=task),
+            ]
+            # No-op unless loop.plan_first is enabled — see context/planning.py for why
+            # this ships off by default.
+            messages = await self._planner.seed(messages, task)
         total = Usage()
 
         while True:
@@ -131,6 +144,9 @@ class AgentLoop:
             results = [await self._execute(call) for call in response.tool_calls]
             messages.append(Message(role="tool", tool_results=results))
 
+        # Exposed so the caller can persist a resumable session without the loop needing
+        # to know where sessions are stored.
+        self.messages = messages
         record.usage = total
         record.latency_ms = int((time.monotonic() - started) * 1000)
         record.finished_at = datetime.now(UTC)
@@ -157,20 +173,25 @@ class AgentLoop:
 
         try:
             self._permissions.check(call.name, summarise_call(call))
-        except PermissionError_ as exc:
+            # Inside the permission gate, never around it: a hook can veto, never approve.
+            await self._hooks.before(call)
+        except (PermissionError_, HookVeto) as exc:
             return ToolResult(call_id=call.id, content=str(exc), is_error=True)
 
         try:
             output = await tool.run(args)
         except Exception as exc:
-            return ToolResult(
+            result = ToolResult(
                 call_id=call.id, content=f"{type(exc).__name__}: {exc}", is_error=True
             )
+        else:
+            result = ToolResult(
+                call_id=call.id,
+                content=truncate(output, self._config.tools.max_tool_output_chars),
+            )
 
-        return ToolResult(
-            call_id=call.id,
-            content=truncate(output, self._config.tools.max_tool_output_chars),
-        )
+        await self._hooks.after(call, result)
+        return result
 
 
 def summarise_call(call: ToolCall) -> str:

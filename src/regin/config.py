@@ -56,6 +56,7 @@ class ToolsConfig(BaseModel):
 class TraceConfig(BaseModel):
     db_path: Path = Path("runs/regin.db")
     jsonl_path: Path = Path("runs/records.jsonl")
+    sessions_path: Path = Path("runs/sessions")
 
 
 class Secrets(BaseSettings):

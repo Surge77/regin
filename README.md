@@ -16,9 +16,12 @@
 A terminal coding agent — plan, edit, run tests, read the failure, iterate — and the benchmark
 loop that proves whether changing it made it better.
 
-> **Status: Phases 1–2 implemented, unscored.** The harness runs end to end; no sweep has been
+> **Status: Phases 1–4 implemented, unscored.** The harness runs end to end; no sweep has been
 > paid for yet, so there is no number here. When there is one it goes in the table below, or the
 > project has failed on its own terms. See [`docs/PLAN.md`](docs/PLAN.md).
+>
+> Every Phase 3 orchestration feature ships **off by default** — the shipped default has to stay
+> the measured baseline until a sweep says otherwise. See [Experiments](#experiments).
 
 ## Why another coding agent
 
@@ -78,6 +81,35 @@ regin bench score --records "runs/bench/*-records.jsonl" --verdicts verdicts.jso
 `--max-cost` is a hard ceiling enforced before each instance is dispatched, not a warning after
 the bill arrives. See [`docs/BENCHMARK.md`](docs/BENCHMARK.md) for the WSL2 + Docker setup and
 the full sweep procedure.
+
+## Experiments
+
+Phase 3 added four orchestration features. Each is a hypothesis, not a fact, so each ships
+disabled and is enabled one at a time in [`regin.toml`](regin.toml):
+
+| Flag | What it does | The hypothesis |
+|---|---|---|
+| `plan_first` | One planning turn before any edit | Less flailing on multi-file tasks |
+| `outline_tool` | `outline` tool: signatures, not whole files | Fewer input tokens per run |
+| `subagent_tool` | `search_agent`: read-only search in its own context | Fewer context overflows |
+| `retry_attempts` | Bounded backoff on transient failures (**on**) | Corrects a measurement error, not behaviour |
+
+Turn one on, re-run the sweep, compare. The scorecard groups by `config_hash`, so both
+configurations appear as separate rows in one table.
+
+DSPy prompt optimisation (plan item 4.4) is deliberately **not** built. Optimising against a
+metric needs a measured baseline to optimise against; building it before Phase 2 has been scored
+would produce a claim nobody can falsify.
+
+## Other commands
+
+```bash
+regin fix "..." --resume last    # continue a run that hit the turn or budget limit
+regin session list               # saved sessions, and which are resumable
+```
+
+Resume refuses to continue a session recorded under a different `config_hash` — blending two
+configurations would make the result attributable to neither.
 
 ## Design commitments
 

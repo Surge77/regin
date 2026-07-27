@@ -25,6 +25,11 @@ dependencies = [
 bench = [
     "docker==7.1.0",
 ]
+# MCP is an ecosystem convenience, not part of the measured agent. Keeping it optional
+# means a benchmark install stays minimal and reproducible.
+mcp = [
+    "mcp==1.9.4",
+]
 dev = [
     "pyright==1.1.406",
     "pytest==8.4.2",

@@ -6,6 +6,45 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Added — Phase 4: ecosystem
+
+- **Hooks** (`hooks.py`) — pre- and post-tool hooks. A pre-hook may veto a call; neither kind can
+  rewrite one, so the call the model made and the call that ran are always the same. Hooks run
+  *inside* the permission gate, so a hook can veto but never approve. A broken pre-hook fails
+  closed; a broken post-hook is swallowed, because the tool already ran.
+- **Session persistence and resume** (`session.py`, `regin fix --resume`, `regin session list`) —
+  a run stopped at the turn or budget limit can be continued instead of restarted. Resume is
+  refused when `config_hash` differs: continuing under a different prompt or model blends two
+  configurations and makes the result attributable to neither.
+- **MCP client** (`tools/mcp.py`, extra: `regin[mcp]`) — third-party tools adapted into the same
+  registry, so the loop needs no special case. Names are prefixed `mcp__` so a remote tool cannot
+  shadow a built-in one, and the server's own JSON Schema is passed through verbatim rather than
+  re-derived.
+
+**Not built: DSPy prompt optimisation (4.4).** The plan states it is worthless before Phase 2 is
+scored and says explicitly not to reorder. Optimising against a metric requires a measured
+baseline to optimise against; building it now would produce an unfalsifiable claim. It stays open
+until a sweep has been run.
+
+### Added — Phase 3: hardening
+
+Every experiment ships **disabled**, because the project's rule is that no orchestration change
+merges without a re-scored before/after. The shipped default remains the measured baseline, and
+each flag is one clean A/B.
+
+- **Planning pass** (`loop.plan_first`) — one planning turn before any edit, injected as an
+  assistant turn rather than a system one so the model revises it when evidence disagrees.
+  Planner effort is its own knob.
+- **Repository outline** (`loop.outline_tool`) — signatures instead of whole files, via stdlib
+  `ast`. Exact for Python, no new dependency.
+- **Search subagent** (`loop.subagent_tool`) — bounded, read-only, its own context, no recursive
+  delegation. It cannot edit or run commands: otherwise "delegate the search" becomes "delegate
+  the work".
+- **Retry** (`loop.retry_attempts`, on by default) — bounded jittered backoff on transient
+  failures only. This corrects a measurement error rather than changing behaviour: a rate limit
+  mid-sweep would otherwise be recorded as an agent failure. A 400 is never retried.
+- Prompt caching (3.6) already shipped in Phase 1.
+
 ### Added — Phase 2: benchmark loop
 
 - `regin bench run` — sweep an agent across a SWE-bench task set with bounded concurrency and a
