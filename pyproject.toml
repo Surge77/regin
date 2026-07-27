@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "regin"
+version = "0.1.0"
+description = "A terminal coding agent that plans, edits, runs tests, and iterates — scored on a benchmark"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "anthropic==0.117.0",
+    "httpx==0.28.1",
+    "pathspec==0.12.1",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.8.1",
+    "rich==15.0.0",
+    "tenacity==9.1.2",
+    "typer==0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.4.2",
+    "pytest-asyncio==1.0.0",
+    "pytest-cov==6.1.1",
+    "respx==0.22.0",
+    "ruff==0.12.2",
+]
+
+[project.scripts]
+regin = "regin.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.coverage.run]
+source = ["src/regin"]

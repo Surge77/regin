@@ -1,0 +1,32 @@
+# regin configuration. Env vars (REGIN_*) override these.
+
+[model]
+provider = "anthropic"
+name = "claude-sonnet-5"
+max_output_tokens = 16000
+# "low" | "medium" | "high" | "xhigh" | "max". Sampling parameters are rejected with a
+# 400 on this model family, so effort is the only depth control.
+effort = "high"
+
+[loop]
+max_turns = 40
+max_run_cost_usd = 2.00      # hard ceiling — the loop aborts, it does not warn
+context_limit_tokens = 180000
+compact_at = 0.75
+
+[tools]
+bash_timeout_s = 120
+max_tool_output_chars = 30000
+
+[permissions]
+# "ask" | "allow" | "deny" per tool. --yes forces allow for benchmark runs.
+read_file = "allow"
+glob = "allow"
+grep = "allow"
+write_file = "ask"
+edit_file = "ask"
+bash = "ask"
+
+[trace]
+db_path = "runs/regin.db"
+jsonl_path = "runs/records.jsonl"
